@@ -5,9 +5,7 @@ mdl = load_model('./yolov2-tiny.h5')
 mdl.summary()
 
 from keras.utils import plot_model
-plot_model(mdl, to_file='yolo_model.png', show_shapes=True)
-from IPython.display import Image
-Image(filename='yolo_model.png') 
+plot_model(mdl, to_file='yolo_model.png', show_shapes = True, expand_nested = True, dpi = 60)
 
 '''
 tvars = tf.trainable_variables()
