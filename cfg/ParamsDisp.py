@@ -1,7 +1,7 @@
 import tensorflow as tf 
 from keras.models import load_model, Model 
 
-mdl = load_model('./yolov2.h5')
+mdl = load_model('./yolov2-tiny.h5')
 mdl.summary()
 
 from keras.utils import plot_model
