@@ -3,3 +3,9 @@
 
 #html files 
 *.html
+
+#h5 files
+*.h5
+
+#weights
+*.weights 
