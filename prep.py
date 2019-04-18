@@ -7,6 +7,7 @@ import cv2
 import xml.etree.ElementTree as ET
 
 import cfg_test
+from boxUtils import BBox, iou
 
 config = cfg_test.config
 
@@ -45,7 +46,7 @@ def parse_annot(ann_dir, img_dir, extension = '.jpg', labels = []):
 
                     if len(labels) > 0 and obj['name'] not in labels:
                         break
-                    else
+                    else:
                         img['object'] += [obj] 
     
         if len(img['object']) > 0:
@@ -91,22 +92,24 @@ class BatchGen():
         self.ann_dir = ann_dir
         self.img_dir = img_dir
         self.labels = labels
+
+        self.anchors = [BBox(0, 0, config['anchors'][2 * i], config['anchors'][2 * i + 1]) for i in range(int(len(config['anchors']) // 2))]
         
         self.file_list = parse_annot(self.ann_dir, self.img_dir, labels = self.labels)
 
-        self.train_split
+        self.train_split = train_split
 
     def __getitem__(self, idx):
         files = self.file_list[idx * config['batch_size'] : (idx + 1) * config['batch_size']]
 
         x_batch = np.zeros([config['batch_size'], config['img_H'], config['img_W'], 3])
         b_batch = np.zeros([config['batch_size'], 1, 1, 1, config['max_true_boxes'], 4])
-        
+        y_batch = np.zeros([config['batch_size'], config['grid_H'], config['grid_W'], config['box'], 4 + 1 + len(config['labels'])])
 
-        for elem in files:
-            img, objs = im_read(elem)
+        for instance, elem in enumerate(files):
+            img, objs = self.im_read(elem)
 
-            for obj in objs: 
+            for true_ind, obj in enumerate(objs): 
                 if obj['xmax'] > obj['xmin'] and obj['ymax'] > obj['ymin'] and obj['name'] in self.labels:
                     x_center = (obj['xmin'] + obj['xmax']) * 0.5
                     y_center = (obj['ymin'] + obj['ymax']) * 0.5
@@ -118,4 +121,32 @@ class BatchGen():
                     grid_y = int(y_center)
 
                     if grid_x < config['grid_W'] and grid_y < config['grid_H']:
-                        obj_ind =   
+                        obj_ind =  self.labels.index(obj['name'])
+
+                        w_center = (obj['xmax'] - obj['xmin']) / (float(config['img_W']) / config['grid_W'])
+                        h_center = (obj['ymax'] - obj['ymin']) / (float(config['img_H']) / config['grid_H'])
+
+                        box = [x_center, y_center, w_center, h_center]
+
+                        #get anchor with best iou
+                        b_anchor = -1
+                        max_iou = -1
+
+                        dummy_box = BBox(0, 0, w_center, h_center)
+
+                        for i, anchor in enumerate(self.anchors):
+                            b_iou = iou(dummy_box, anchor)
+
+                            if b_iou > max_iou:
+                                b_anchor = i
+                                max_iou = b_iou
+
+                        y_batch[instance, grid_y, grid_x, b_anchor, : 4] = box
+                        y_batch[instance, grid_y, grid_x, b_anchor, 4] = 1.0
+                        y_batch[instance, grid_y, grid_x, b_anchor, 5 + obj_ind] = 1.0
+
+                        b_batch[instance, 0, 0, 0, true_ind % config['max_true_boxes']] = box     
+
+            x_batch[instance] = img
+            
+        return [x_batch, b_batch], y_batch                                   
