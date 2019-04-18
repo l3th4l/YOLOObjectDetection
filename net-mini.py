@@ -3,15 +3,9 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Input, Lambda, Conv2D, BatchNormalization as BatchNorm, LeakyReLU as LRelu, MaxPooling2D, Reshape
 from tensorflow.keras.models import Model, load_model
 
-config = {
-        'img_H' : 416, 
-        'img_W' : 416, 
-        'max_true_boxes' : 50,
-        'grid_H' : 13, 
-        'grid_W' : 13,
-        'box' : 5, 
-        'classes': 1 
-    }
+import cfg_test
+
+config = cfg_test.config
 
 img_H = config['img_H']
 img_W = config['img_W']
