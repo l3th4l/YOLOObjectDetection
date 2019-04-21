@@ -72,12 +72,12 @@ x = Conv2D(512, [3, 3], strides = [1, 1], padding = 'same', use_bias = False)(x)
 x = BatchNorm()(x)
 x = LRelu()(x)
 
-out = Conv2D(425, [1, 1], strides = [1, 1], padding = 'same', use_bias = True)(x)
-out = Reshape([grid_H, grid_W, box, 4 + 1 + classes])(out)
+t_out = Conv2D(425, [1, 1], strides = [1, 1], padding = 'same', use_bias = True)(x)
+t_out = Reshape([grid_H, grid_W, box, 4 + 1 + classes])(t_out)
 
 # small hack to allow true_boxes to be registered when Keras build the model 
 # for more information: https://github.com/fchollet/keras/issues/2790
-out = Lambda(lambda a : a[0])([out, x_true_boxes])
+out = Lambda(lambda a : a[0])([t_out, x_true_boxes])
 
 #Make the model 
 mdl = Model(inputs = [x_img, x_true_boxes], outputs = out)
