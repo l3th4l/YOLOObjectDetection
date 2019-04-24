@@ -6,7 +6,9 @@ import cfg_test
 
 config = cfg_test.config
 
-def loss(out, labels):
+CLASS_WEIGHTS    = np.ones(config['classes'], dtype='float32')
+
+def loss(out, labels, true_boxes):
     mask_shape = tf.shape(labels)[ : 4]
 
     cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(config['grid_W']), config['grid_H']), [1, config['grid_H'], config['grid_W'], 1, 1]))
@@ -40,4 +42,37 @@ def loss(out, labels):
     #configure masks 
     coord_mask = tf.expand_dims(labels[..., 4], axis = -1)
 
+    true_xy = true_boxes[..., : 2]
+    true_wh = true_boxes[..., 2 : 4]
+
+    pred_xy_expanded = tf.expand_dims(pred_box_xy, axis = 4)
+    pred_wh_expanded = tf.expand_dims(pred_box_wh, axis = 4)
+
+    iou = tf_iou(true_xy, true_wh, pred_xy_expanded, pred_wh_expanded)
+    best_iou = tf.reduce_max(iou, axis = 4)
+
+    conf_mask = conf_mask + tf.to_float(best_iou < 0.6) * (1 - labels[..., 4])
+    class_mask = labels[..., 4] * tf.gather(CLASS_WEIGHTS, true_box_class) 
+
+    #Warm up training
+    no_box_mask = tf.to_float(coord_mask < 0.5)
+    seen = tf.assign_add(seen, 1)
+
+    true_box_xy, true_box_wh, coord_mask = tf.cond(tf.less(seen, config['warm_up_epochs']),
+                                                   lambda : [true_box_xy + (0.5 + cell_grid) * no_box_mask, 
+                                                             true_box_wh + tf.ones_like(true_box_wh) * np.reshape(config['anchors'], [1, 1, 1, config['box'], 2]) * no_box_mask,
+                                                             tf.ones_like(coord_mask)],
+                                                   lambda : [true_box_xy, 
+                                                             true_box_wh, 
+                                                             coord_mask] )
     
+    #Combine losses 
+    nb_coord_box = tf.reduce_sum(tf.to_float(coord_mask > 0))
+    nb_conf_box = tf.reduce_sum(tf.to_float(conf_mask > 0))
+    nb_class_box = tf.reduce_sum(tf.to_float(class_mask > 0))
+
+    loss_xy = tf.reduce_sum(tf.square(true_box_xy - pred_box_xy) * coord_mask) / (nb_coord_box + 1e-6) / 2
+    loss_wh = tf.reduce_sum(tf.square(true_box_wh - pred_box_wh) * coord_mask) / (nb_coord_box + 1e-6) / 2
+    loss_conf = tf.reduce_sum(tf.square(true_box_conf - pred_box_conf) * conf_mask) / (nb_conf_box + 1e-6) / 2
+    loss_class = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = true_box_class, logits = pred_box_class)
+    loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)

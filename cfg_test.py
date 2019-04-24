@@ -13,6 +13,7 @@ config =    {
     'box' : int(cfg.get('img config', 'box')), 
     'classes': int(cfg.get('img config', 'classes')),
     'anchors' : [float(x) for x in list(cfg.get('img config', 'anchors').split(', '))],
-    'batch_size' : int(cfg.get('img config', 'classes'))
+    'batch_size' : int(cfg.get('img config', 'classes')),
+    'warm_up_epochs' : int(cfg.get('img config', 'warm_up_epochs'))
 }
 print(config)
